@@ -147,6 +147,7 @@ let propTypes = {
     selectedItems: CustomPropTypes.message,
     noneSelected: CustomPropTypes.message,
     removeLabel: CustomPropTypes.message,
+    maxSelectionsReached: CustomPropTypes.message,
   }),
 }
 
@@ -159,8 +160,9 @@ function useMultiselectData<TDataItem>(
   filter?: Filter<TDataItem>,
   searchTerm?: string,
   showSelectedItemsInList?: boolean,
+  maxSelections?: number,
 ) {
-  data = useMemo(
+  const unselectedData = useMemo(
     () =>
       showSelectedItemsInList
         ? data
@@ -168,9 +170,31 @@ function useMultiselectData<TDataItem>(
     [data, showSelectedItemsInList, value, accessors],
   )
 
+  const limitReached =
+    maxSelections !== undefined && value.length >= maxSelections
+
+  // once the limit is reached the remaining, still selectable items are treated
+  // as disabled so rendering (ListOption styles) and click interception share a
+  // single source of truth; already selected items stay enabled for removal
+  const limitedDisabledItems = useMemo(
+    () =>
+      limitReached
+        ? showSelectedItemsInList
+          ? data.filter((i) => !value.some((v) => accessors.matches(i, v)))
+          : unselectedData
+        : EMPTY_ARRAY,
+    [limitReached, showSelectedItemsInList, data, unselectedData, value, accessors],
+  )
+
   return [
-    useFilteredData(data, filter || false, searchTerm, accessors.text),
-    data.length,
+    useFilteredData(
+      unselectedData,
+      filter || false,
+      searchTerm,
+      accessors.text,
+    ),
+    unselectedData.length,
+    limitedDisabledItems as readonly TDataItem[],
   ] as const
 }
 

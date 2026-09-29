@@ -21,6 +21,7 @@ export interface Messages {
   removeLabel: LabelMessage
   noneSelected: LabelMessage
   selectedItems: (labels: string[]) => string
+  maxSelectionsReached: (maxSelections: number) => string
 
   // number
   increment: LabelMessage
@@ -49,6 +50,8 @@ const messages = {
   removeLabel: 'Remove selected item',
   noneSelected: 'no selected items',
   selectedItems: (labels: string[]) => `Selected items: ${labels.join(', ')}`,
+  maxSelectionsReached: (maxSelections: number) =>
+    `You can only select up to ${maxSelections} items`,
 
   // number
   increment: 'Increment value',
