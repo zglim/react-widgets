@@ -418,12 +418,11 @@ function Calendar({
     let date = new Date()
     let firstView = views[0]
 
-    notify(onChange, [date])
-
     if (dates.inRange(date, min, max, firstView)) {
       focus()
       maybeSetCurrentDate(date)
       notify(handleViewChange, [firstView])
+      notify(handleChange, [date])
     }
   }
 
