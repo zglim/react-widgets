@@ -474,4 +474,163 @@ describe('Multiselect', function () {
     expect(change.calledOnce).to.equal(true)
     expect(change.calledWith(listHead)).to.equal(true)
   })
+
+  describe('maxSelections', function () {
+    it('should not insert when the max selections is reached', function () {
+      let change = sinon.spy()
+
+      mount(
+        <Multiselect
+          open
+          value={dataList.slice(0, 2)}
+          data={dataList}
+          maxSelections={2}
+          onChange={change}
+          onToggle={() => {}}
+        />,
+      )
+        .find('List')
+        .act((_) =>
+          _.prop('onChange')(dataList[2], { originalEvent: new Event('foo') }),
+        )
+
+      expect(change.called).to.equal(false)
+    })
+
+    it('should allow inserts until the max selections is reached', function () {
+      let change = sinon.spy()
+
+      mount(
+        <Multiselect
+          open
+          value={dataList.slice(0, 1)}
+          data={dataList}
+          maxSelections={2}
+          onChange={change}
+          onToggle={() => {}}
+        />,
+      )
+        .find('List')
+        .act((_) =>
+          _.prop('onChange')(dataList[1], { originalEvent: new Event('foo') }),
+        )
+
+      expect(change.calledOnce).to.equal(true)
+      expect(change.firstCall.args[1].action).to.equal('insert')
+    })
+
+    it('should still allow removes at the max selections', function () {
+      let change = sinon.spy()
+      let value = dataList.slice(0, 2)
+
+      mount(
+        <Multiselect
+          value={value}
+          data={dataList}
+          maxSelections={2}
+          onChange={change}
+        />,
+      )
+        .find('button.rw-multiselect-tag-btn')
+        .first()
+        .simulate('click')
+
+      expect(change.calledOnce).to.equal(true)
+      expect(change.firstCall.args[1].action).to.equal('remove')
+    })
+
+    it('should disable unselected list options at the max selections', function () {
+      mount(
+        <Multiselect
+          open
+          value={dataList.slice(0, 2)}
+          data={dataList}
+          maxSelections={2}
+          onToggle={() => {}}
+        />,
+      )
+        .find('List')
+        .assertSingle('.rw-list-option.rw-state-disabled')
+    })
+
+    it('should not disable already selected items with showSelectedItemsInList', function () {
+      let inst = mount(
+        <Multiselect
+          open
+          value={dataList.slice(0, 2)}
+          data={dataList}
+          maxSelections={2}
+          showSelectedItemsInList
+          onToggle={() => {}}
+        />,
+      )
+
+      let options = inst.find('List .rw-list-option')
+      expect(options).to.have.length(3)
+      expect(options.at(0).is('.rw-state-disabled')).to.equal(false)
+      expect(options.at(1).is('.rw-state-disabled')).to.equal(false)
+      expect(options.at(2).is('.rw-state-disabled')).to.equal(true)
+    })
+
+    it('should announce the limit and link the input to the message', function () {
+      let inst = mount(
+        <Multiselect
+          open
+          value={dataList.slice(0, 2)}
+          data={dataList}
+          maxSelections={2}
+          onToggle={() => {}}
+        />,
+      )
+
+      let status = inst.find('span[role="status"]')
+      expect(status).to.have.length(1)
+      expect(status.text()).to.contain('2')
+
+      expect(
+        inst.find('MultiselectInput').prop('aria-describedby'),
+      ).to.equal(status.prop('id'))
+    })
+
+    it('should not block onCreate when the limit is reached', function () {
+      let create = sinon.spy()
+
+      mount(
+        <Multiselect
+          open
+          allowCreate
+          searchTerm="custom tag"
+          value={dataList.slice(0, 2)}
+          data={dataList}
+          maxSelections={2}
+          onCreate={create}
+          onSearch={() => {}}
+          onToggle={() => {}}
+        />,
+      )
+        .find('div.rw-list-option-create')
+        .simulate('click')
+
+      expect(create.calledOnce).to.equal(true)
+      expect(create.calledWith('custom tag')).to.equal(true)
+    })
+
+    it('does nothing when maxSelections is not set', function () {
+      let inst = mount(
+        <Multiselect
+          open
+          value={dataList}
+          data={dataList}
+          showSelectedItemsInList
+          onToggle={() => {}}
+        />,
+      )
+
+      inst.find('List').assertNone('.rw-state-disabled')
+      expect(inst.find('span[role="status"]')).to.have.length(0)
+      expect(
+        inst.find('MultiselectInput').prop('aria-describedby'),
+      ).to.equal(undefined)
+    })
+  })
 })

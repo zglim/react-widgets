@@ -20,6 +20,7 @@ export interface Messages {
   tagsLabel: LabelMessage
   removeLabel: LabelMessage
   noneSelected: LabelMessage
+  limitReached: (maxSelections: number) => string
   selectedItems: (labels: string[]) => string
 
   // number
@@ -48,6 +49,10 @@ const messages = {
   tagsLabel: 'Selected items',
   removeLabel: 'Remove selected item',
   noneSelected: 'no selected items',
+  limitReached: (maxSelections: number) =>
+    `Maximum selection limit of ${maxSelections} item${
+      maxSelections === 1 ? '' : 's'
+    } reached`,
   selectedItems: (labels: string[]) => `Selected items: ${labels.join(', ')}`,
 
   // number

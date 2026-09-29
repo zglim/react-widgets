@@ -95,6 +95,8 @@ let propTypes = {
 
   allowCreate: PropTypes.oneOf([true, false, 'onFilter']),
 
+  maxSelections: PropTypes.number,
+
   /**
    *
    * @type { (dataItem: ?any, metadata: { originalEvent: SyntheticEvent }) => void }
@@ -146,6 +148,7 @@ let propTypes = {
     tagsLabel: CustomPropTypes.message,
     selectedItems: CustomPropTypes.message,
     noneSelected: CustomPropTypes.message,
+    limitReached: CustomPropTypes.message,
     removeLabel: CustomPropTypes.message,
   }),
 }
@@ -153,12 +156,13 @@ let propTypes = {
 const EMPTY_ARRAY = [] as unknown[]
 
 function useMultiselectData<TDataItem>(
-  value = EMPTY_ARRAY,
+  value: readonly unknown[] = EMPTY_ARRAY,
   data: readonly TDataItem[],
   accessors: Accessors,
   filter?: Filter<TDataItem>,
   searchTerm?: string,
   showSelectedItemsInList?: boolean,
+  maxSelections?: number,
 ) {
   data = useMemo(
     () =>
@@ -168,9 +172,26 @@ function useMultiselectData<TDataItem>(
     [data, showSelectedItemsInList, value, accessors],
   )
 
+  const filteredData = useFilteredData(
+    data,
+    filter || false,
+    searchTerm,
+    accessors.text,
+  )
+
+  const limitDisabledItems = useMemo(() => {
+    if (maxSelections == null || value.length < maxSelections)
+      return EMPTY_ARRAY as TDataItem[]
+
+    return filteredData.filter(
+      (item) => !value.some((v) => accessors.matches(item, v)),
+    )
+  }, [filteredData, maxSelections, value, accessors])
+
   return [
-    useFilteredData(data, filter || false, searchTerm, accessors.text),
+    filteredData,
     data.length,
+    limitDisabledItems,
   ] as const
 }
 
@@ -203,6 +224,7 @@ export interface MultiselectProps<TDataItem = DataItem>
   tagListComponent?: React.ComponentType<MultiselectTagListProps<DataItem>>
 
   showSelectedItemsInList?: boolean
+  maxSelections?: number
 }
 
 declare interface Multiselect {
@@ -274,6 +296,7 @@ const Multiselect: Multiselect = React.forwardRef(function Multiselect<
     popupTransition,
     showPlaceholderWithValues = false,
     showSelectedItemsInList = false,
+    maxSelections,
     onSelect,
     onCreate,
     onKeyDown,
@@ -323,6 +346,7 @@ const Multiselect: Multiselect = React.forwardRef(function Multiselect<
   const createId = useInstanceId(id, '_createlist_option')
   const activeTagId = useInstanceId(id, '_taglist_active_tag')
   const activeOptionId = useInstanceId(id, '_listbox_active_option')
+  const limitId = useInstanceId(id, '_limit_reached')
 
   const accessors = useAccessors(textField, dataKey)
   const messages = useMessagesWithDefaults(userMessages)
@@ -351,14 +375,26 @@ const Multiselect: Multiselect = React.forwardRef(function Multiselect<
     [rawData, currentValue, accessors],
   )
 
-  const [data, lengthWithoutValues] = useMultiselectData(
+  const [data, lengthWithoutValues, limitDisabledItems] = useMultiselectData(
     dataItems,
     rawData,
     accessors,
     currentOpen ? filter : false,
     currentSearch,
     showSelectedItemsInList,
+    maxSelections,
   )
+
+  const limitReached =
+    maxSelections != null && currentValue!.length >= maxSelections
+
+  const listDisabled = useMemo(() => {
+    if (isDisabled || !limitDisabledItems.length) return disabled
+
+    return Array.isArray(disabled)
+      ? disabled.concat(limitDisabledItems)
+      : limitDisabledItems
+  }, [disabled, isDisabled, limitDisabledItems])
 
   const list = useFocusList<TDataItem>({
     scope: ref,
@@ -563,6 +599,7 @@ const Multiselect: Multiselect = React.forwardRef(function Multiselect<
 
     switch (action) {
       case INSERT:
+        if (limitReached) return
         nextDataItems = nextDataItems.concat(dataItem)
         break
       case REMOVE:
@@ -618,6 +655,11 @@ const Multiselect: Multiselect = React.forwardRef(function Multiselect<
     (shouldRenderTags ? tagsId : '') +
     (showCreateOption ? createId : '')
 
+  let describedBy =
+    (inputProps && (inputProps as any)['aria-describedby']) || undefined
+  if (limitReached)
+    describedBy = describedBy ? `${describedBy} ${limitId}` : limitId
+
   return (
     <Widget
       {...elementProps}
@@ -631,6 +673,11 @@ const Multiselect: Multiselect = React.forwardRef(function Multiselect<
       {...focusEvents}
       className={cn(className, 'rw-multiselect')}
     >
+      {limitReached && (
+        <span id={limitId} role="status" className="rw-sr-only">
+          {messages.limitReached(maxSelections!)}
+        </span>
+      )}
       <WidgetPicker
         onClick={handleClick}
         onTouchEnd={handleClick}
@@ -652,6 +699,7 @@ const Multiselect: Multiselect = React.forwardRef(function Multiselect<
           >
             <MultiselectInput
               {...inputProps}
+              aria-describedby={describedBy}
               role="combobox"
               autoFocus={autoFocus}
               tabIndex={tabIndex || 0}
@@ -697,7 +745,7 @@ const Multiselect: Multiselect = React.forwardRef(function Multiselect<
               id={listId}
               data={data}
               tabIndex={-1}
-              disabled={disabled}
+              disabled={listDisabled}
               searchTerm={currentSearch}
               accessors={accessors}
               renderItem={renderListItem}
